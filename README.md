@@ -332,4 +332,109 @@ docker compose -f docker-compose-build.yaml rm
 docker compose rm
 ```
 
-## Integration with external gNB/UE
+## Integration with external gNB/UE in local
+## Integracion with external gNB/UE in VM
+
+### Enviorament
+
+Created a ubuntu-20.04 VM with a network adapter as bridge adapter and hostname **ueransim**
+Start the VM and:
+
+Verify conection:
+```cmd
+ping www.google.com
+ip a
+```
+
+Verify the hostname **ueransim** in /etc/hostname and /etc/hosts files, edit them if is necesary:
+```cmd
+ubuntu@ueransim:/etc/netplan$ cat /etc/hostname
+ueransim
+ubuntu@ueransim:/etc/netplan$ cat /etc/hosts
+127.0.0.1	localhost
+127.0.1.1	ueransim
+
+# The following lines are desirable for IPv6 capable hosts
+::1     ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+
+```
+
+Config network adapters:
+```cmd
+cd /etc/netplan
+sudo nano 00-installer-config.yaml
+```
+
+Copy it in ***nano 00-installer-config.yaml***
+```cmd
+network:
+  ethernets:
+    enp0s3:
+      dhcp4: true
+    enp0s8:
+      dhcp4: no
+      addresses: [192.168.21.131/24]
+  version: 2
+```
+
+Apply de changes:
+```cmd
+sudo netplan try
+sudo netplan apply
+```
+
+Verify conection with the host:
+```cmd
+ip a
+ping 192.168.21.130 # ip del host
+```
+
+Install the next tools and packages:
+- `sudo apt install git`
+
+### Instalation
+
+See de this tutorial to ueransin [instalation](https://github.com/aligungr/UERANSIM/wiki/Installation).
+
+```cmd
+cd ~
+git clone https://github.com/aligungr/UERANSIM
+
+sudo apt update
+sudo apt upgrade # Optional
+
+sudo apt install make
+sudo apt install gcc
+sudo apt install g++
+sudo apt install libsctp-dev lksctp-tools
+sudo apt install iproute2
+sudo snap install cmake --classic
+
+cd ~/UERANSIM
+make
+```
+
+And that's it. After successfully compiling the project, output binaries will be copied to ~/UERANSIM/build folder. And you should see the following files:
+
+nr-gnb | Main executable for 5G gNB (RAN)
+nr-ue | Main executable for 5G UE
+nr-cli | CLI tool for 5G gNB and UE
+nr-binder | A tool for utilizing UE's internet connectivity.
+libdevbnd.so | A dynamic library for nr-binder
+Run nr-gnb and nr-ue to start using UE and gNB. More details about them can be found in next steps.
+
+nr-binder and libdevbnd.so are only required for binding UEs internet connectivity to an arbitrary application, and generally not used.
+
+### Configuration
+
+See de this tutorial to ueransin [configuration](https://github.com/aligungr/UERANSIM/wiki/Configuration)
+
+Login in the ueransim VM:
+```cmd
+sudo apt install openssh-server # In ueransim VM (guest)
+ssh ssh [username]@[host_ip_address] - p [port] # In the host
+```
