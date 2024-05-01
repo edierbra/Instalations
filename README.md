@@ -335,6 +335,8 @@ docker compose rm
 ## Integration with external gNB/UE in local
 ## Integracion with external gNB/UE in VM
 
+To more information visit [Installing UERANSIM - a UE/RAN Simulator](https://free5gc.org/guide/5-install-ueransim/)
+
 ### Enviorament
 
 Created a ubuntu-20.04 VM with a network adapter as bridge adapter and hostname **ueransim**
@@ -429,12 +431,85 @@ Run nr-gnb and nr-ue to start using UE and gNB. More details about them can be f
 
 nr-binder and libdevbnd.so are only required for binding UEs internet connectivity to an arbitrary application, and generally not used.
 
-### Configuration
+### Setting Free5GC
 
-See de this tutorial to ueransin [configuration](https://github.com/aligungr/UERANSIM/wiki/Configuration)
+If use a [Free5GC VM](https://free5gc.org/guide/2-config-vm-en/) follow the next steps:
+
+Login in the Free5GC VM:
+```cmd
+sudo apt install openssh-server # In ueransim VM (guest)
+ssh ssh [username]@[host_ip_address] - p [port] # In the host
+```
+
+Replace ngapIpList IP from amf.free5gc.org to 192.168.21.130 in **config/amfcfg.yaml**
+
+In the entry inside userplaneInformation / upNodes / UPF / interfaces / endpoints, change the IP from upf.free5gc.org to 192.168.21.130 in **config/smfcfg.yaml**
+
+Finally, edit **config/upfcfg.yaml**，and chage gtpu IP from upf.free5gc.org into 192.168.56.101
+
+### Setting UERANSIM
+
+You can see the UERANSIM [configuration](https://github.com/aligungr/UERANSIM/wiki/Configuration) and github [repository](https://github.com/aligungr/UERANSIM)
 
 Login in the ueransim VM:
 ```cmd
 sudo apt install openssh-server # In ueransim VM (guest)
 ssh ssh [username]@[host_ip_address] - p [port] # In the host
+ssh-keygen -f "/home/tesis/.ssh/known_hosts" -R "192.168.21.131" # Remove a entry of old host
+```
+
+In the ueransim VM, there are two files related to free5GC：
+
+- ~/UERANSIM/config/free5gc-gnb.yaml
+- ~/UERANSIM/config/free5gc-ue.yaml
+
+The second file is for UE, which we don’t have to change if the data inside is consistent with the (default) registration data we set using WebConsole previously.
+
+First SSH into ueransim, and edit the file ~/UERANSIM/config/free5gc-gnb.yaml, and change the ngapIp IP, as well as the gtpIp IP, from 127.0.0.1 to 192.168.21.131，and also change the IP in amfConfigs into 192.168.21.130
+
+### Testing UERANSIM against free5GC
+
+You can see the UERANSIM [usage](https://github.com/aligungr/UERANSIM/wiki/Usage).
+
+SSH into free5gc. If you have rebooted free5gc, remember to run:
+```cmd
+sudo sysctl -w net.ipv4.ip_forward=1
+sudo iptables -t nat -A POSTROUTING -o <dn_interface> -j MASQUERADE
+sudo systemctl stop ufw
+```
+
+Note: In Ubuntu Server 20.04 and 22.04 the dn_interface may be called enp0s3 or enp0s4 by default. Use the command ip a to help to figure it out
+
+In addition, execute the following command:
+```cmd
+sudo iptables -I FORWARD 1 -j ACCEPT
+```
+
+The last comands permit:
+1. sudo sysctl -w net.ipv4.ip_forward=1: Habilita el reenvío de paquetes IP en el kernel del sistema, permitiendo que actúe como un enrutador.
+2. sudo iptables -t nat -A POSTROUTING -o wlp3s0 -j MASQUERADE: Configura una regla de traducción de direcciones de red (NAT) para ocultar las direcciones IP internas detrás de la dirección IP de la interfaz de salida.
+3. sudo systemctl stop ufw: Detiene el servicio de firewall ufw, desactivando cualquier regla de firewall que esté siendo aplicada.
+4. sudo iptables -I FORWARD 1 -j ACCEPT: Inserta una regla en iptables para permitir el reenvío de paquetes entre interfaces de red, necesaria porque la política predeterminada bloquea estos paquetes.
+
+Reboot free5GC if you change the config.
+
+At this time free5GC has been started.
+
+Next, prepare three additional SSH terminals from your host machine (if you know how to use tmux, you can use just one).
+
+In terminal 1: SSH into ueransim, make sure UERANSIM is built, and configuration files have been changed correctly, then execute nr-gnb:
+```cmd
+cd ~/UERANSIM
+build/nr-gnb -c config/free5gc-gnb.yaml
+```
+
+In terminal 2, SSH into ueransim, and execute nr-ue with admin right:
+```cmd
+cd ~/UERANSIM
+sudo build/nr-ue -c config/free5gc-ue.yaml # for multiple-UEs, use -n and -t for number and delay
+```
+
+In terminal 3, SSH into ueransim, and ping 192.168.21.130 to see free5gc is alive. Then, use ifconfig to see if the tunnel uesimtun0 has been created (by nr-ue):
+```cmd
+ifconfig
 ```
